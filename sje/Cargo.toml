@@ -2,6 +2,14 @@
 name = "sje"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+description.workspace = true
+readme = "../README.md"
+documentation.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 sje_derive = { path = "../sje_derive", optional = true }

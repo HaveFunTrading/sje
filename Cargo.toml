@@ -5,10 +5,9 @@ license = "MIT"
 description = "Fast JSON deserialisation and serialisation schema based framework."
 documentation = "https://docs.rs/sje"
 repository = "https://github.com/HaveFunTrading/sje"
-keywords = ["json", "low-latency"]
-categories = ["development-tools::debugging"]
+keywords = ["json", "low-latency", "parser", "decoder", "schema"]
+categories = ["encoding", "parser-implementations", "parsing", "finance"]
 rust-version = "1.84.1"
-
 
 [workspace]
 resolver = "2"
