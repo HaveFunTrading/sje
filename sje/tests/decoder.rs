@@ -66,9 +66,9 @@ mod tests {
 
     #[test]
     fn should_decode_listen_key_expired() {
-        let listen_key_expired = ListenKeyExpiredDecoder::decode(br#"{"e": "listenKeyExpired","E": "1743606297156","listenKey": "HETWQLaXyzqtJDtLMw2tKS87iL2HpYRniDWpkoxWCb4fwP2yzJXalBlBNnz471cE"}"#).unwrap();
+        let listen_key_expired = ListenKeyExpiredDecoder::decode(br#"{"e": "listenKeyExpired","E": "1743606297156","listenKey": "FdffIUjdfd343DtLMw2tKS87iL2HpYRniDWpkoxWCb4fwP2yzJXalBlBNnz471cE"}"#).unwrap();
         assert_eq!("listenKeyExpired", listen_key_expired.event_type());
         assert_eq!(1743606297156, listen_key_expired.event_time());
-        assert_eq!("HETWQLaXyzqtJDtLMw2tKS87iL2HpYRniDWpkoxWCb4fwP2yzJXalBlBNnz471cE", listen_key_expired.listen_key());
+        assert_eq!("FdffIUjdfd343DtLMw2tKS87iL2HpYRniDWpkoxWCb4fwP2yzJXalBlBNnz471cE", listen_key_expired.listen_key());
     }
 }
