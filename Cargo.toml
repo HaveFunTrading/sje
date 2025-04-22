@@ -1,0 +1,23 @@
+[workspace.package]
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+description = "Fast JSON deserialisation and serialisation schema based framework."
+documentation = "https://docs.rs/sje"
+repository = "https://github.com/HaveFunTrading/sje"
+keywords = ["json", "low-latency"]
+categories = ["development-tools::debugging"]
+rust-version = "1.84.1"
+
+
+[workspace]
+resolver = "2"
+members = [
+    "sje",
+    "sje_derive"
+]
+
+[profile.bench]
+lto = true
+codegen-units = 1
+debug = false

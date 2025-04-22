@@ -1,0 +1,13 @@
+[package]
+name = "sje_derive"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+syn = "2"
+quote = "1"
+proc-macro2 = "1.0.93"
+heck = "0.5.0"
+
+[lib]
+proc-macro = true
