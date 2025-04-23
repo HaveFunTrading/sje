@@ -6,6 +6,9 @@ pub mod error;
 mod macros;
 pub mod scanner;
 
+#[cfg(feature = "derive")]
+pub use sje_derive::Decoder;
+
 #[derive(Debug)]
 pub struct LazyField<'a, T> {
     inner: UnsafeCell<Field<'a, T>>,

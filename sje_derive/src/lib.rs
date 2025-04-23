@@ -286,7 +286,8 @@ fn handle_sje_object(name: &syn::Ident, data_struct: DataStruct, _sje_attr: SjeA
                     }
                 })
             } else {
-                let as_lazy_field = Ident::new(&format!("{}_as_lazy_field", field_name.as_ref().unwrap()), field_name.span());
+                let as_lazy_field =
+                    Ident::new(&format!("{}_as_lazy_field", field_name.as_ref().unwrap()), field_name.span());
                 gen.extend(quote! {
                     #[inline]
                     pub const fn #as_slice(&self) -> &[u8] {
