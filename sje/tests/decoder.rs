@@ -50,7 +50,7 @@ mod tests {
         assert_eq!("BTCUSDT", unsafe { from_utf8_unchecked(trade.symbol_as_slice()) });
         assert_eq!("BTCUSDT", trade.symbol_as_str());
         assert_eq!("BTCUSDT", trade.symbol());
-
+        
         let trade: Trade = trade.into();
         assert_eq!("trade", trade.event_type);
         assert_eq!(1705085312569, trade.event_time);
