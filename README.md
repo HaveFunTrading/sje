@@ -8,6 +8,13 @@
 Fast JSON deserialisation and serialisation schema based framework.
 
 ## Example
+
+Make sure the `derive` feature is enabled.
+
+```toml
+sje = { version = "0.0.4", features = ["derive"]}
+```
+
 ```rust
 #[derive(Decoder)]
 #[sje(object)]
