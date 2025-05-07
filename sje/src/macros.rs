@@ -47,25 +47,67 @@ macro_rules! composite_impl {
     ($method_name:ident, $open_char:literal, $close_char:literal) => {
         impl<'a> JsonScanner<'a> {
             #[inline]
-            pub fn $method_name(&mut self) -> Option<(usize, usize)> {
-                let offset = self.cursor;
-                let mut counter = 1u32;
-                for (index, &item) in unsafe { self.bytes.get_unchecked(offset + 1..) }
-                    .iter()
-                    .enumerate()
-                {
-                    match item {
+            pub const fn $method_name(&mut self) -> Option<(usize, usize)> {
+                let bytes = self.bytes;
+                let start = self.cursor;
+                let mut counter: u32 = 1;
+                let mut i: usize = 0;
+        
+                loop {
+                    // if we've run off the end, give up
+                    let idx = start + 1 + i;
+                    if idx >= bytes.len() {
+                        return None;
+                    }
+        
+                    // fetch the next byte after the opening char
+                    let b = bytes[idx];
+        
+                    // bump the nesting counter
+                    match b {
                         $open_char => counter += 1,
                         $close_char => counter -= 1,
-                        _ => {}
+                        _    => {}
                     }
+        
+                    // if we've closed the top‐level object, return its span
                     if counter == 0 {
-                        self.cursor += index + 2;
-                        return Some((offset, index + 2));
+                        self.cursor = start + i + 2;
+                        return Some((start, i + 2));
                     }
+        
+                    i += 1;
                 }
-                None
             }
         }
     };
 }
+
+
+// #[macro_export]
+// macro_rules! composite_impl {
+//     ($method_name:ident, $open_char:literal, $close_char:literal) => {
+//         impl<'a> JsonScanner<'a> {
+//             #[inline]
+//             pub fn $method_name(&mut self) -> Option<(usize, usize)> {
+//                 let offset = self.cursor;
+//                 let mut counter = 1u32;
+//                 for (index, &item) in unsafe { self.bytes.get_unchecked(offset + 1..) }
+//                     .iter()
+//                     .enumerate()
+//                 {
+//                     match item {
+//                         $open_char => counter += 1,
+//                         $close_char => counter -= 1,
+//                         _ => {}
+//                     }
+//                     if counter == 0 {
+//                         self.cursor += index + 2;
+//                         return Some((offset, index + 2));
+//                     }
+//                 }
+//                 None
+//             }
+//         }
+//     };
+// }
