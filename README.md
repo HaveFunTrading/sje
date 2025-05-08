@@ -120,7 +120,7 @@ assert_eq!(Price(12345), trade.price());
 
 There are [benchmarks](sje/benches) against [serde_json](https://crates.io/crates/serde_json) that show an order of magnitude
 speedup. Please note `sje` is not a generic purpose json parser - it's fast because it takes advantage of fixed schema and
-lacks a lot of features you would find in `serde_json` to handle more dynamic content.
+lacks a lot of features you would find in `serde` to handle more dynamic content.
 
 ```shell
 RUSTFLAGS='-C target-cpu=native' cargo bench --bench=ticker

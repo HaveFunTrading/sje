@@ -1,5 +1,5 @@
 [workspace.package]
-version = "0.0.6"
+version = "0.0.7"
 edition = "2021"
 license = "MIT"
 description = "Fast JSON deserialisation and serialisation schema based framework."
