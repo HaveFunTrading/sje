@@ -8,7 +8,7 @@ const JSON: &[u8] = br#"{"e":"bookTicker","u":6780157666962,"s":"BTCUSDT","b":"9
 #[sje(object)]
 #[allow(dead_code)]
 pub struct Ticker {
-    #[sje(rename = "e", len = 10, offset = 2)]
+    #[sje(rename = "e", len = 10)]
     #[serde(rename = "e")]
     event_type: String,
     #[sje(rename = "u", len = 13)]

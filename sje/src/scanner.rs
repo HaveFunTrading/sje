@@ -34,34 +34,100 @@ composite_impl!(next_tuple, b'[', b']');
 composite_impl!(next_object, b'{', b'}');
 
 impl JsonScanner<'_> {
-    #[inline]
-    pub fn next_array(&mut self) -> Option<(usize, usize, usize)> {
-        let offset = self.cursor;
-        let mut counter = 1u32;
-        let mut array_len = 0;
-        for (index, &item) in unsafe { self.bytes.get_unchecked(offset + 1..) }.iter().enumerate() {
-            match item {
-                b'[' => counter += 1,
-                b']' => counter -= 1,
+    pub const fn next_array(&mut self) -> Option<(usize, usize, usize)> {
+        let bytes = self.bytes;
+        let start = self.cursor;
+
+        // state
+        let mut array_depth = 0usize;
+        let mut obj_depth = 0usize;
+        let mut in_string = false;
+        let mut escaped = false;
+        let mut commas = 0usize;
+        let mut saw_value = false;
+        let mut index = 0usize;
+
+        // iterate until we run off the end
+        loop {
+            // bounds-check
+            if start + index >= bytes.len() {
+                return None;
+            }
+            let b = bytes[start + index];
+
+            // 1) handle strings & escapes
+            if in_string {
+                if escaped {
+                    escaped = false;
+                } else if b == b'\\' {
+                    escaped = true;
+                } else if b == b'"' {
+                    in_string = false;
+                }
+                index += 1;
+                continue;
+            } else if b == b'"' {
+                in_string = true;
+                index += 1;
+                continue;
+            }
+
+            // 2) track nesting and detect top-level elements
+            match b {
+                // entering any array
+                b'[' => {
+                    array_depth += 1;
+                    if array_depth == 1 {
+                        // this is the '[' of *our* array
+                        saw_value = false;
+                    } else if array_depth == 2 {
+                        // nested array => counts as an element
+                        saw_value = true;
+                    }
+                }
+
+                // leaving an array
+                b']' => {
+                    array_depth -= 1;
+                    if array_depth == 0 {
+                        // done with this array
+                        let element_count = if saw_value { commas + 1 } else { 0 };
+                        // advance cursor past the closing ]
+                        self.cursor = start + index + 1;
+                        return Some((start, index + 1, element_count));
+                    }
+                }
+
+                // entering an object (only matters inside our array)
+                b'{' if array_depth > 0 => {
+                    if array_depth == 1 && obj_depth == 0 {
+                        // top-level object => counts as element
+                        saw_value = true;
+                    }
+                    obj_depth += 1;
+                }
+
+                // leaving an object
+                b'}' if array_depth > 0 => {
+                    obj_depth -= 1;
+                }
+
+                // a comma that really separates two top-level elements
+                b',' if array_depth == 1 && obj_depth == 0 => {
+                    commas += 1;
+                    saw_value = false; // now look for next element
+                }
+
+                // any other non-whitespace at top-level marks “we saw a value”
+                _ if array_depth == 1 && !b.is_ascii_whitespace() => {
+                    saw_value = true;
+                }
+
                 _ => {}
             }
 
-            if item == b',' && counter == 1 {
-                array_len += 1;
-            }
-
-            if counter == 0 {
-                if index > 0 {
-                    let previous = unsafe { *self.bytes.get_unchecked(index - 1) } as char;
-                    if previous != '[' {
-                        array_len += 1;
-                    }
-                }
-                self.cursor += index + 2;
-                return Some((offset, index + 2, array_len));
-            }
+            index += 1;
         }
-        None
     }
 }
 
@@ -188,6 +254,15 @@ mod tests {
     }
 
     #[test]
+    fn should_scan_bool_array() {
+        let bytes = br#"[true,false,false]"#;
+        let mut scanner = JsonScanner::wrap(bytes);
+
+        let (_, _, count) = scanner.next_array().unwrap();
+        assert_eq!(3, count)
+    }
+
+    #[test]
     fn should_scan_object() {
         let bytes = br#"{"b":{"id":1},"a":[4,5],"E":1704907109810,"c":{"id":1,"foo":{"id":2}}}"#;
         let mut scanner = JsonScanner::wrap(bytes);
@@ -254,6 +329,15 @@ mod tests {
         scanner.skip(5);
         let (offset, len) = scanner.next_number().unwrap();
         assert_eq!("-541.56".as_bytes(), &bytes[offset..offset + len]);
+    }
+
+    #[test]
+    fn should_scan_array_of_objects() {
+        let bytes = br#"[{"s":"btcusdt","a":100},{"s":"ethusdt","a":200}]"#;
+        let mut scanner = JsonScanner::wrap(bytes);
+        scanner.skip(0);
+        let (_, _, count) = scanner.next_array().unwrap();
+        assert_eq!(2, count)
     }
 
     mod decoder {
