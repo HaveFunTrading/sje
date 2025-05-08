@@ -52,37 +52,36 @@ macro_rules! composite_impl {
                 let start = self.cursor;
                 let mut counter: u32 = 1;
                 let mut i: usize = 0;
-        
+
                 loop {
                     // if we've run off the end, give up
                     let idx = start + 1 + i;
                     if idx >= bytes.len() {
                         return None;
                     }
-        
+
                     // fetch the next byte after the opening char
                     let b = bytes[idx];
-        
+
                     // bump the nesting counter
                     match b {
                         $open_char => counter += 1,
                         $close_char => counter -= 1,
-                        _    => {}
+                        _ => {}
                     }
-        
+
                     // if we've closed the top‐level object, return its span
                     if counter == 0 {
                         self.cursor = start + i + 2;
                         return Some((start, i + 2));
                     }
-        
+
                     i += 1;
                 }
             }
         }
     };
 }
-
 
 // #[macro_export]
 // macro_rules! composite_impl {

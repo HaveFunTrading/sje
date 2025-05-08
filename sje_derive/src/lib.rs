@@ -6,8 +6,8 @@ use std::str::FromStr;
 use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
 use syn::{
-    parse_macro_input, Data, DataEnum, DataStruct, DeriveInput, Error, Fields, Ident, LitInt, LitStr, PathArguments,
-    PathSegment, Token, Type,
+    parse_macro_input, Data, DataEnum, DataStruct, DeriveInput, Error, Fields, Ident, LitBool, LitInt, LitStr,
+    PathArguments, PathSegment, Token, Type, TypePath,
 };
 
 #[derive(Debug, Copy, Clone)]
@@ -58,6 +58,7 @@ struct SjeFieldAttribute {
     also_as: Option<String>,
     /// offset at which value begins
     offset: usize,
+    decoder: bool,
 }
 
 impl Parse for SjeFieldAttribute {
@@ -67,6 +68,7 @@ impl Parse for SjeFieldAttribute {
         let mut ty = None;
         let mut also_as = None;
         let mut offset = 0;
+        let mut decoder = false;
 
         while !input.is_empty() {
             let lookahead = input.lookahead1();
@@ -92,6 +94,10 @@ impl Parse for SjeFieldAttribute {
                     input.parse::<Token![=]>()?;
                     let offset_lit: LitInt = input.parse()?;
                     offset = offset_lit.base10_parse()?;
+                } else if ident == "decoder" {
+                    input.parse::<Token![=]>()?;
+                    let decoder_lit: LitBool = input.parse()?;
+                    decoder = decoder_lit.value();
                 } else {
                     return Err(syn::Error::new_spanned(ident, "expected ['len' | 'rename' | 'ty']"));
                 }
@@ -111,6 +117,7 @@ impl Parse for SjeFieldAttribute {
             ty,
             also_as,
             offset,
+            decoder,
         })
     }
 }
@@ -346,6 +353,12 @@ fn handle_sje_object(name: &syn::Ident, data_struct: DataStruct, _sje_attr: SjeA
     });
 
     let iterators = fields.iter().map(|field| {
+        let mut decoder = false;
+        if let Some(sje_attr) = field.attrs.iter().find(|attr| attr.path().is_ident("sje")) {
+            let sje_field = sje_attr.parse_args::<SjeFieldAttribute>().expect("unable to parse");
+            decoder = sje_field.decoder
+        }
+
         let field_name = &field.ident;
         let field_type = &field.ty;
 
@@ -359,8 +372,9 @@ fn handle_sje_object(name: &syn::Ident, data_struct: DataStruct, _sje_attr: SjeA
                             let array_fn_name = format_ident!("{}", field_name.as_ref().unwrap().to_string());
                             let iterator_name =
                                 format_ident!("{}Iter", field_name.as_ref().unwrap().to_string().to_upper_camel_case());
-                            let next_impl = iterator_next_impl(arg_type);
-                            return quote! {
+                            let next_impl = iterator_next_impl(arg_type, decoder);
+
+                            let mut code = quote! {
                                 #[derive(Debug)]
                                 pub struct #array_struct_name<'a> {
                                     bytes: &'a [u8],
@@ -373,44 +387,10 @@ fn handle_sje_object(name: &syn::Ident, data_struct: DataStruct, _sje_attr: SjeA
                                         #array_struct_name { bytes: self.#array_fn_name.0, remaining: self.#array_fn_name.1 }
                                     }
                                 }
-
-                                impl From<#array_struct_name<'_>> for Vec<#arg_type> {
-                                    fn from(value: #array_struct_name) -> Self {
-                                        value.into_iter().collect()
-                                    }
-                                }
-
-                                impl<'a> IntoIterator for #array_struct_name<'a> {
-                                    type Item = #arg_type;
-                                    type IntoIter = #iterator_name<'a>;
-
-                                    fn into_iter(self) -> Self::IntoIter {
-                                        #iterator_name {
-                                            scanner: sje::scanner::JsonScanner::wrap(self.bytes),
-                                            remaining: self.remaining
-                                        }
-                                    }
-                                }
-
                                 pub struct #iterator_name<'a> {
                                     scanner: sje::scanner::JsonScanner<'a>,
                                     remaining: usize,
                                 }
-
-                                impl Iterator for #iterator_name<'_> {
-                                    type Item = #arg_type;
-
-                                    #[inline]
-                                    fn next(&mut self) -> Option<Self::Item> {
-                                        #next_impl
-                                    }
-
-                                    #[inline]
-                                    fn size_hint(&self) -> (usize, Option<usize>) {
-                                        (self.remaining, Some(self.remaining))
-                                    }
-                                }
-
                                 impl ExactSizeIterator for #iterator_name<'_> {
 
                                     #[inline]
@@ -419,6 +399,78 @@ fn handle_sje_object(name: &syn::Ident, data_struct: DataStruct, _sje_attr: SjeA
                                     }
                                 }
                             };
+
+                            if decoder {
+                                let arg_type_decoder = format_ident!("{}Decoder", type_to_ident(arg_type).unwrap());
+                                code.extend(quote! {
+                                    impl <'a> From<#array_struct_name<'a>> for Vec<#arg_type_decoder<'a>> {
+                                        fn from(value: #array_struct_name<'a>) -> Self {
+                                            value.into_iter().collect()
+                                        }
+                                    }
+
+                                    impl<'a> IntoIterator for #array_struct_name<'a> {
+                                        type Item = #arg_type_decoder<'a>;
+                                        type IntoIter = #iterator_name<'a>;
+                                        fn into_iter(self) -> Self::IntoIter {
+                                            #iterator_name {
+                                                scanner: sje::scanner::JsonScanner::wrap(self.bytes),
+                                                remaining: self.remaining
+                                            }
+                                        }
+                                    }
+                                    impl <'a> Iterator for #iterator_name<'a> {
+                                        type Item = #arg_type_decoder<'a>;
+                                        #[inline]
+                                        fn next(&mut self) -> Option<Self::Item> {
+                                            #next_impl
+                                        }
+                                        #[inline]
+                                        fn size_hint(&self) -> (usize, Option<usize>) {
+                                            (self.remaining, Some(self.remaining))
+                                        }
+                                    }
+                                    impl From<#array_struct_name<'_>> for Vec<#arg_type> {
+                                        fn from(value: #array_struct_name<'_>) -> Self {
+                                            value.into_iter().map(|decoder| decoder.into()).collect()
+                                        }
+                                    }
+                                });
+                            } else {
+                                code.extend(quote! {
+                                    impl From<#array_struct_name<'_>> for Vec<#arg_type> {
+                                        fn from(value: #array_struct_name) -> Self {
+                                            value.into_iter().collect()
+                                        }
+                                    }
+
+                                    impl<'a> IntoIterator for #array_struct_name<'a> {
+                                        type Item = #arg_type;
+                                        type IntoIter = #iterator_name<'a>;
+
+                                        fn into_iter(self) -> Self::IntoIter {
+                                            #iterator_name {
+                                                scanner: sje::scanner::JsonScanner::wrap(self.bytes),
+                                                remaining: self.remaining
+                                            }
+                                        }
+                                    }
+
+                                    impl Iterator for #iterator_name<'_> {
+                                        type Item = #arg_type;
+
+                                        #[inline]
+                                        fn next(&mut self) -> Option<Self::Item> {
+                                            #next_impl
+                                        }
+                                        #[inline]
+                                        fn size_hint(&self) -> (usize, Option<usize>) {
+                                            (self.remaining, Some(self.remaining))
+                                        }
+                                    }
+                                });
+                            }
+                            return code;
                         }
                     }
                 }
@@ -480,48 +532,87 @@ fn resolve_type(ty: &Type, ty_override: Option<String>) -> syn::Result<&'static 
     }
 }
 
-fn iterator_next_impl(ty: &Type) -> proc_macro2::TokenStream {
-    if let Type::Tuple(tuple) = ty {
-        // Generate code for processing each element
-        let mut code = quote! {};
-        let mut tuple_values = Vec::new();
+fn iterator_next_impl(ty: &Type, decoder: bool) -> proc_macro2::TokenStream {
+    match ty {
+        Type::Path(path) => {
+            let mut code = quote! {};
+            let mut p = path.path.clone();
+            if let Some(last) = p.segments.last_mut() {
+                // last.ident = format_ident!("{}Decoder", last.ident);
+                let ident = match decoder {
+                    true => format_ident!("{}Decoder", last.ident.clone()),
+                    false => format_ident!("{}", last.ident.clone()),
+                };
 
-        code.extend(quote! {
-            if self.scanner.position() + 1 == self.scanner.bytes().len() {
-                return None;
+                let last = match decoder {
+                    true => quote! {
+                        Some(#ident::decode(bytes).unwrap())
+                    },
+                    false => quote! {
+                        let s = unsafe { std::str::from_utf8_unchecked(bytes) };
+                        Some(#ident::from_str(s).unwrap())
+                    },
+                };
+
+                code.extend(quote! {
+                    if self.scanner.position() + 1 == self.scanner.bytes().len() {
+                        return None;
+                    }
+                    self.scanner.skip(1);
+                    let (offset, len) = self.scanner.next_object()?;
+                    self.remaining -= 1;
+
+                    let bytes = &self.scanner.bytes()[offset..offset + len];
+                    let bytes = unsafe { std::slice::from_raw_parts(bytes.as_ptr(), bytes.len()) };
+                    #last
+                    // Some(#ident::decode(bytes).unwrap())
+                });
             }
-            self.scanner.skip(1);
-            let (offset, len) = self.scanner.next_tuple()?;
-            let mut tuple_scanner = unsafe { sje::scanner::JsonScanner::wrap(self.scanner.bytes().get_unchecked(offset..offset + len)) };
-        });
+            code
+        }
+        Type::Tuple(tuple) => {
+            // Generate code for processing each element
+            let mut code = quote! {};
+            let mut tuple_values = Vec::new();
 
-        // Iterate over the tuple elements and generate code for each element
-        for (i, _) in tuple.elems.iter().enumerate() {
-            // Dynamically generate a variable name based on the index
-            let var_name = format_ident!("val_{i}");
-
-            // Generate the code for processing this element
             code.extend(quote! {
-                tuple_scanner.skip(1);
-                let (offset, len) = tuple_scanner.next_string()?;
-                let str = unsafe { std::str::from_utf8_unchecked(tuple_scanner.bytes().get_unchecked(offset..offset + len)) };
-                let #var_name = str.parse().unwrap();
+                if self.scanner.position() + 1 == self.scanner.bytes().len() {
+                    return None;
+                }
+                self.scanner.skip(1);
+                let (offset, len) = self.scanner.next_tuple()?;
+                let mut tuple_scanner = unsafe { sje::scanner::JsonScanner::wrap(self.scanner.bytes().get_unchecked(offset..offset + len)) };
             });
 
-            // Add the variable to the tuple values vector for dynamic construction
-            tuple_values.push(quote! { #var_name });
+            // Iterate over the tuple elements and generate code for each element
+            for (i, _) in tuple.elems.iter().enumerate() {
+                // Dynamically generate a variable name based on the index
+                let var_name = format_ident!("val_{i}");
+
+                // Generate the code for processing this element
+                code.extend(quote! {
+                    tuple_scanner.skip(1);
+                    let (offset, len) = tuple_scanner.next_string()?;
+                    let str = unsafe { std::str::from_utf8_unchecked(tuple_scanner.bytes().get_unchecked(offset..offset + len)) };
+                    let #var_name = str.parse().unwrap();
+                });
+
+                // Add the variable to the tuple values vector for dynamic construction
+                tuple_values.push(quote! { #var_name });
+            }
+
+            // Combine the generated code and the `Some(...)` expression
+            code.extend(quote! {
+                self.remaining -= 1;
+                Some((#(#tuple_values),*))
+            });
+
+            code
         }
-
-        // Combine the generated code and the `Some(...)` expression
-        code.extend(quote! {
-            self.remaining -= 1;
-            Some((#(#tuple_values),*))
-        });
-
-        code
-    } else {
-        // If it's not a tuple, return an empty TokenStream
-        quote! {}
+        _ => {
+            // If it's not a tuple, return an empty TokenStream
+            quote! {}
+        }
     }
 }
 
@@ -536,6 +627,17 @@ fn is_integer_type(ty: &Type) -> bool {
         }
     }
     false
+}
+
+/// Try to extract the bare `Ident` from a `&Type::Path`.
+fn type_to_ident(ty: &Type) -> Option<Ident> {
+    if let Type::Path(TypePath { qself: None, path }) = ty {
+        // if it's something like `Foo` or `my::crate::Bar`,
+        // `.segments.last()` is the `Bar` segment
+        path.segments.last().map(|seg| seg.ident.clone())
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]

@@ -336,8 +336,7 @@ mod tests {
         let bytes = br#"[{"s":"btcusdt","a":100},{"s":"ethusdt","a":200}]"#;
         let mut scanner = JsonScanner::wrap(bytes);
         scanner.skip(0);
-        let (offset, len, count) = scanner.next_array().unwrap();
-
+        let (_, _, count) = scanner.next_array().unwrap();
         assert_eq!(2, count)
     }
 
