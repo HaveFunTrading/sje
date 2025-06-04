@@ -1,6 +1,6 @@
 use crate::error::Error;
 use std::cell::UnsafeCell;
-use std::str::{from_utf8_unchecked, FromStr};
+use std::str::{FromStr, from_utf8_unchecked};
 
 pub mod error;
 mod macros;

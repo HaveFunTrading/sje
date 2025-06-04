@@ -6,8 +6,8 @@ use std::str::FromStr;
 use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
 use syn::{
-    parse_macro_input, Data, DataEnum, DataStruct, DeriveInput, Error, Fields, Ident, LitBool, LitInt, LitStr,
-    PathArguments, PathSegment, Token, Type, TypePath,
+    Data, DataEnum, DataStruct, DeriveInput, Error, Fields, Ident, LitBool, LitInt, LitStr, PathArguments, PathSegment,
+    Token, Type, TypePath, parse_macro_input,
 };
 
 #[derive(Debug, Copy, Clone)]
@@ -145,7 +145,7 @@ pub fn decoder_derive(input: TokenStream) -> TokenStream {
 
 fn handle_enum(name: &syn::Ident, data_enum: DataEnum) -> TokenStream {
     let variants = data_enum.variants.iter().map(|v| &v.ident);
-    let gen = quote! {
+    let generated = quote! {
         impl From<&[u8]> for #name {
             fn from(bytes: &[u8]) -> Self {
                 match std::str::from_utf8(bytes).unwrap() {
@@ -155,7 +155,7 @@ fn handle_enum(name: &syn::Ident, data_enum: DataEnum) -> TokenStream {
             }
         }
     };
-    gen.into()
+    generated.into()
 }
 
 fn handle_struct(name: &syn::Ident, data_struct: DataStruct, sje_attr: SjeAttribute) -> TokenStream {
@@ -272,13 +272,13 @@ fn handle_sje_object(name: &syn::Ident, data_struct: DataStruct, _sje_attr: SjeA
         let as_slice = Ident::new(&format!("{}_as_slice", field_name.as_ref().unwrap()), field_name.span());
         let as_str = Ident::new(&format!("{}_as_str", field_name.as_ref().unwrap()), field_name.span());
 
-        let mut gen = quote! {};
+        let mut generated = quote! {};
 
         let field_type = &field.ty;
-        if let syn::Type::Path(ref path) = field_type {
+        if let syn::Type::Path(path) = field_type {
             if path.path.segments.last().map(|seg| seg.ident == "Vec").unwrap_or(false) {
                 let array_count = Ident::new(&format!("{}_count", field_name.as_ref().unwrap()), field_name.span());
-                gen.extend(quote! {
+                generated.extend(quote! {
                     #[inline]
                     pub const fn #as_slice(&self) -> &[u8] {
                         self.#field_name.0
@@ -295,7 +295,7 @@ fn handle_sje_object(name: &syn::Ident, data_struct: DataStruct, _sje_attr: SjeA
             } else {
                 let as_lazy_field =
                     Ident::new(&format!("{}_as_lazy_field", field_name.as_ref().unwrap()), field_name.span());
-                gen.extend(quote! {
+                generated.extend(quote! {
                     #[inline]
                     pub const fn #as_slice(&self) -> &[u8] {
                         self.#field_name.as_slice()
@@ -321,7 +321,7 @@ fn handle_sje_object(name: &syn::Ident, data_struct: DataStruct, _sje_attr: SjeA
                     &format!("{}_as_{}", field_name.as_ref().unwrap(), type_name.to_snake_case()),
                     field_name.span(),
                 );
-                gen.extend(quote! {
+                generated.extend(quote! {
 
                     #[inline]
                     pub fn #also_as(&self) -> #type_name_ident {
@@ -331,13 +331,13 @@ fn handle_sje_object(name: &syn::Ident, data_struct: DataStruct, _sje_attr: SjeA
             }
         }
 
-        gen
+        generated
     });
 
     let new_fields = fields.iter().map(|field| {
         let field_name = &field.ident;
         let field_type = &field.ty;
-        if let syn::Type::Path(ref path) = field_type {
+        if let syn::Type::Path(path) = field_type {
             if path.path.segments.last().map(|seg| seg.ident == "Vec").unwrap_or(false) {
                 quote! {
                     #field_name: (&'a [u8], usize),
@@ -362,7 +362,7 @@ fn handle_sje_object(name: &syn::Ident, data_struct: DataStruct, _sje_attr: SjeA
         let field_name = &field.ident;
         let field_type = &field.ty;
 
-        if let syn::Type::Path(ref path) = field_type {
+        if let syn::Type::Path(path) = field_type {
             if path.path.segments.last().map(|seg| seg.ident == "Vec").unwrap_or(false) {
                 if let Some(segment) = path.path.segments.last() {
                     if let PathArguments::AngleBracketed(args) = &segment.arguments {
@@ -642,7 +642,7 @@ fn type_to_ident(ty: &Type) -> Option<Ident> {
 
 #[cfg(test)]
 mod tests {
-    use syn::{parse_quote, parse_str, Attribute};
+    use syn::{Attribute, parse_quote, parse_str};
 
     use super::*;
 

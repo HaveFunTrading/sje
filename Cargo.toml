@@ -1,16 +1,16 @@
 [workspace.package]
-version = "0.0.8"
-edition = "2021"
+version = "0.0.9"
+edition = "2024"
 license = "MIT"
 description = "Fast JSON deserialisation and serialisation schema based framework."
 documentation = "https://docs.rs/sje"
 repository = "https://github.com/HaveFunTrading/sje"
 keywords = ["json", "low-latency", "parser", "decoder", "schema"]
 categories = ["encoding", "parser-implementations", "parsing", "finance"]
-rust-version = "1.84.0"
+rust-version = "1.85.1"
 
 [workspace]
-resolver = "2"
+resolver = "3"
 members = [
     "sje",
     "sje_derive"
