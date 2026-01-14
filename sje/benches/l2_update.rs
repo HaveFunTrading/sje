@@ -1,8 +1,8 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use serde::{Deserialize, Deserializer};
 use sje_derive::Decoder;
-use std::str::FromStr;
 use sonic_rs::{from_slice, from_slice_unchecked};
+use std::str::FromStr;
 const JSON: &[u8] = br#"{"e":"depthUpdate","E":1739836781765,"T":1739836781757,"s":"XRPUSDT","U":6780157664288,"u":6780157666166,"pu":6780157664112,"b":[["2.6461","6404.9"],["2.6468","22540.8"]],"a":[["2.6582","12708.6"],["2.6588","10898.1"],["2.6611","16595.4"]]}"#;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -176,7 +176,7 @@ fn sonic_unchecked_l2_update_benchmark(c: &mut Criterion) {
 
     group.bench_function("sonic_l2_update", |b| {
         b.iter(|| {
-            let l2_update: L2Update = unsafe {from_slice_unchecked(JSON).unwrap()};
+            let l2_update: L2Update = unsafe { from_slice_unchecked(JSON).unwrap() };
 
             assert_eq!("depthUpdate", l2_update.event_type);
             assert_eq!(1739836781765, l2_update.event_time);
@@ -198,6 +198,11 @@ fn sonic_unchecked_l2_update_benchmark(c: &mut Criterion) {
     });
 }
 
-
-criterion_group!(benches, sje_l2_update_benchmark, serde_l2_update_benchmark, sonic_l2_update_benchmark, sonic_unchecked_l2_update_benchmark);
+criterion_group!(
+    benches,
+    sje_l2_update_benchmark,
+    serde_l2_update_benchmark,
+    sonic_l2_update_benchmark,
+    sonic_unchecked_l2_update_benchmark
+);
 criterion_main!(benches);

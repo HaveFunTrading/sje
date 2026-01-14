@@ -114,7 +114,7 @@ fn sonic_unchecked_trade_benchmark(c: &mut Criterion) {
 
     group.bench_function("sonic_trade", |b| {
         b.iter(|| {
-            let trade: Trade = unsafe {from_slice_unchecked(JSON).unwrap()};
+            let trade: Trade = unsafe { from_slice_unchecked(JSON).unwrap() };
             assert_eq!("trade", trade.event_type);
             assert_eq!(1705085312569, trade.event_time);
             assert_eq!("BTCUSDT", trade.symbol);
@@ -129,5 +129,11 @@ fn sonic_unchecked_trade_benchmark(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, sje_trade_benchmark, serde_trade_benchmark, sonic_trade_benchmark, sonic_unchecked_trade_benchmark);
+criterion_group!(
+    benches,
+    sje_trade_benchmark,
+    serde_trade_benchmark,
+    sonic_trade_benchmark,
+    sonic_unchecked_trade_benchmark
+);
 criterion_main!(benches);

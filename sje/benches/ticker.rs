@@ -108,7 +108,7 @@ fn sonic_unchecked_ticker_benchmark(c: &mut Criterion) {
 
     group.bench_function("sonic_ticker", |b| {
         b.iter(|| {
-            let ticker: Ticker = unsafe {from_slice_unchecked(JSON).unwrap()};
+            let ticker: Ticker = unsafe { from_slice_unchecked(JSON).unwrap() };
             assert_eq!("bookTicker", ticker.event_type);
             assert_eq!(6780157666962, ticker.update_id);
             assert_eq!("BTCUSDT", ticker.symbol);
@@ -122,5 +122,11 @@ fn sonic_unchecked_ticker_benchmark(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, sje_ticker_benchmark, serde_ticker_benchmark, sonic_ticker_benchmark, sonic_unchecked_ticker_benchmark);
+criterion_group!(
+    benches,
+    sje_ticker_benchmark,
+    serde_ticker_benchmark,
+    sonic_ticker_benchmark,
+    sonic_unchecked_ticker_benchmark
+);
 criterion_main!(benches);
