@@ -1,6 +1,7 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use serde::Deserialize;
 use sje_derive::Decoder;
+use sonic_rs::{from_slice, from_slice_unchecked};
 
 const JSON: &[u8] = br#"{"e":"bookTicker","u":6780157666962,"s":"BTCUSDT","b":"95732.60","B":"2.073","a":"95732.70","A":"23.383","T":1739836781773,"E":1739836781774}"#;
 
@@ -79,5 +80,53 @@ fn serde_ticker_benchmark(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, sje_ticker_benchmark, serde_ticker_benchmark);
+fn sonic_ticker_benchmark(c: &mut Criterion) {
+    let mut group = c.benchmark_group("sonic_safe");
+    group.throughput(Throughput::Elements(1));
+    group.throughput(Throughput::Bytes(JSON.len() as u64));
+
+    group.bench_function("sonic_ticker", |b| {
+        b.iter(|| {
+            let ticker: Ticker = from_slice(JSON).unwrap();
+            assert_eq!("bookTicker", ticker.event_type);
+            assert_eq!(6780157666962, ticker.update_id);
+            assert_eq!("BTCUSDT", ticker.symbol);
+            assert_eq!("95732.60", ticker.bid_price);
+            assert_eq!("2.073", ticker.bid_qty);
+            assert_eq!("95732.70", ticker.ask_price);
+            assert_eq!("23.383", ticker.ask_qty);
+            assert_eq!(1739836781773, ticker.transaction_time);
+            assert_eq!(1739836781774, ticker.event_time);
+        })
+    });
+}
+
+fn sonic_unchecked_ticker_benchmark(c: &mut Criterion) {
+    let mut group = c.benchmark_group("sonic_unsafe");
+    group.throughput(Throughput::Elements(1));
+    group.throughput(Throughput::Bytes(JSON.len() as u64));
+
+    group.bench_function("sonic_ticker", |b| {
+        b.iter(|| {
+            let ticker: Ticker = unsafe { from_slice_unchecked(JSON).unwrap() };
+            assert_eq!("bookTicker", ticker.event_type);
+            assert_eq!(6780157666962, ticker.update_id);
+            assert_eq!("BTCUSDT", ticker.symbol);
+            assert_eq!("95732.60", ticker.bid_price);
+            assert_eq!("2.073", ticker.bid_qty);
+            assert_eq!("95732.70", ticker.ask_price);
+            assert_eq!("23.383", ticker.ask_qty);
+            assert_eq!(1739836781773, ticker.transaction_time);
+            assert_eq!(1739836781774, ticker.event_time);
+        })
+    });
+}
+
+criterion_group!(
+    benches,
+    sje_ticker_benchmark,
+    serde_ticker_benchmark,
+    sonic_ticker_benchmark,
+    sonic_unchecked_ticker_benchmark
+);
 criterion_main!(benches);

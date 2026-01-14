@@ -1,6 +1,7 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use serde::Deserialize;
 use sje_derive::Decoder;
+use sonic_rs::{from_slice, from_slice_unchecked};
 
 const JSON: &[u8] = br#"{"e":"trade","E":1705085312569,"s":"BTCUSDT","t":3370034463,"p":"43520.00000000","q":"0.00022000","b":24269765071,"a":24269767699,"T":1705085312568,"m":true,"M":true}"#;
 
@@ -84,5 +85,55 @@ fn serde_trade_benchmark(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, sje_trade_benchmark, serde_trade_benchmark);
+fn sonic_trade_benchmark(c: &mut Criterion) {
+    let mut group = c.benchmark_group("sonic_safe");
+    group.throughput(Throughput::Elements(1));
+    group.throughput(Throughput::Bytes(JSON.len() as u64));
+
+    group.bench_function("sonic_trade", |b| {
+        b.iter(|| {
+            let trade: Trade = from_slice(JSON).unwrap();
+            assert_eq!("trade", trade.event_type);
+            assert_eq!(1705085312569, trade.event_time);
+            assert_eq!("BTCUSDT", trade.symbol);
+            assert_eq!(3370034463, trade.trade_id);
+            assert_eq!("43520.00000000", trade.price);
+            assert_eq!("0.00022000", trade.quantity);
+            assert_eq!(24269765071, trade.buyer_order_id);
+            assert_eq!(24269767699, trade.seller_order_id);
+            assert_eq!(1705085312568, trade.transaction_time);
+            assert!(trade.is_buyer_maker);
+        })
+    });
+}
+
+fn sonic_unchecked_trade_benchmark(c: &mut Criterion) {
+    let mut group = c.benchmark_group("sonic_unsafe");
+    group.throughput(Throughput::Elements(1));
+    group.throughput(Throughput::Bytes(JSON.len() as u64));
+
+    group.bench_function("sonic_trade", |b| {
+        b.iter(|| {
+            let trade: Trade = unsafe { from_slice_unchecked(JSON).unwrap() };
+            assert_eq!("trade", trade.event_type);
+            assert_eq!(1705085312569, trade.event_time);
+            assert_eq!("BTCUSDT", trade.symbol);
+            assert_eq!(3370034463, trade.trade_id);
+            assert_eq!("43520.00000000", trade.price);
+            assert_eq!("0.00022000", trade.quantity);
+            assert_eq!(24269765071, trade.buyer_order_id);
+            assert_eq!(24269767699, trade.seller_order_id);
+            assert_eq!(1705085312568, trade.transaction_time);
+            assert!(trade.is_buyer_maker);
+        })
+    });
+}
+
+criterion_group!(
+    benches,
+    sje_trade_benchmark,
+    serde_trade_benchmark,
+    sonic_trade_benchmark,
+    sonic_unchecked_trade_benchmark
+);
 criterion_main!(benches);

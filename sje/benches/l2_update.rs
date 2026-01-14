@@ -1,8 +1,8 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use serde::{Deserialize, Deserializer};
 use sje_derive::Decoder;
+use sonic_rs::{from_slice, from_slice_unchecked};
 use std::str::FromStr;
-
 const JSON: &[u8] = br#"{"e":"depthUpdate","E":1739836781765,"T":1739836781757,"s":"XRPUSDT","U":6780157664288,"u":6780157666166,"pu":6780157664112,"b":[["2.6461","6404.9"],["2.6468","22540.8"]],"a":[["2.6582","12708.6"],["2.6588","10898.1"],["2.6611","16595.4"]]}"#;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -140,5 +140,69 @@ fn serde_l2_update_benchmark(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, sje_l2_update_benchmark, serde_l2_update_benchmark);
+fn sonic_l2_update_benchmark(c: &mut Criterion) {
+    let mut group = c.benchmark_group("sonic_safe");
+    group.throughput(Throughput::Elements(1));
+    group.throughput(Throughput::Bytes(JSON.len() as u64));
+
+    group.bench_function("sonic_l2_update", |b| {
+        b.iter(|| {
+            let l2_update: L2Update = from_slice(JSON).unwrap();
+
+            assert_eq!("depthUpdate", l2_update.event_type);
+            assert_eq!(1739836781765, l2_update.event_time);
+            assert_eq!(1739836781757, l2_update.transaction_time);
+            assert_eq!("XRPUSDT", l2_update.symbol);
+            assert_eq!(6780157664288, l2_update.first_update_id);
+            assert_eq!(6780157666166, l2_update.final_update_id);
+            assert_eq!(6780157664112, l2_update.previous_final_update_id);
+
+            let mut bids = l2_update.bids.into_iter();
+            assert_eq!((Price(2.6461), Quantity(6404.9)), bids.next().unwrap());
+            assert_eq!((Price(2.6468), Quantity(22540.8)), bids.next().unwrap());
+
+            let mut asks = l2_update.asks.into_iter();
+            assert_eq!((Price(2.6582), Quantity(12708.6)), asks.next().unwrap());
+            assert_eq!((Price(2.6588), Quantity(10898.1)), asks.next().unwrap());
+            assert_eq!((Price(2.6611), Quantity(16595.4)), asks.next().unwrap());
+        })
+    });
+}
+
+fn sonic_unchecked_l2_update_benchmark(c: &mut Criterion) {
+    let mut group = c.benchmark_group("sonic_unsafe");
+    group.throughput(Throughput::Elements(1));
+    group.throughput(Throughput::Bytes(JSON.len() as u64));
+
+    group.bench_function("sonic_l2_update", |b| {
+        b.iter(|| {
+            let l2_update: L2Update = unsafe { from_slice_unchecked(JSON).unwrap() };
+
+            assert_eq!("depthUpdate", l2_update.event_type);
+            assert_eq!(1739836781765, l2_update.event_time);
+            assert_eq!(1739836781757, l2_update.transaction_time);
+            assert_eq!("XRPUSDT", l2_update.symbol);
+            assert_eq!(6780157664288, l2_update.first_update_id);
+            assert_eq!(6780157666166, l2_update.final_update_id);
+            assert_eq!(6780157664112, l2_update.previous_final_update_id);
+
+            let mut bids = l2_update.bids.into_iter();
+            assert_eq!((Price(2.6461), Quantity(6404.9)), bids.next().unwrap());
+            assert_eq!((Price(2.6468), Quantity(22540.8)), bids.next().unwrap());
+
+            let mut asks = l2_update.asks.into_iter();
+            assert_eq!((Price(2.6582), Quantity(12708.6)), asks.next().unwrap());
+            assert_eq!((Price(2.6588), Quantity(10898.1)), asks.next().unwrap());
+            assert_eq!((Price(2.6611), Quantity(16595.4)), asks.next().unwrap());
+        })
+    });
+}
+
+criterion_group!(
+    benches,
+    sje_l2_update_benchmark,
+    serde_l2_update_benchmark,
+    sonic_l2_update_benchmark,
+    sonic_unchecked_l2_update_benchmark
+);
 criterion_main!(benches);
